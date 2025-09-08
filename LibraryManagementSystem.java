@@ -1,3 +1,4 @@
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -15,11 +16,9 @@ class Book {
     public String getTitle() {
         return title;
     }
-
     public String getAuthor() {
         return author;
     }
-
     public String getIsbn() {
         return isbn;
     }
@@ -28,13 +27,35 @@ class Book {
     public String toString() {
         return "Title: " + title + " | Author: " + author + " | ISBN: " + isbn;
     }
+
+    public String toFileString() {
+        return toString();
+    }
+
+    public static Book fromFileString(String line) {
+        try {
+            String[] parts = line.split("\\|");
+            String title = parts[0].split("Title:")[1].trim();
+            String author = parts[1].split("Author:")[1].trim();
+            String isbn = parts[2].split("ISBN:")[1].trim();
+            return new Book(title, author, isbn);
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }
 
 class Library {
     private ArrayList<Book> books = new ArrayList<>();
+    private final String FILE_NAME = "books.txt";
+
+    public Library() {
+        loadBooksFromFile();
+    }
 
     public void addBook(Book book) {
         books.add(book);
+        saveBooksToFile();
         System.out.println("✅ Book added successfully!");
     }
 
@@ -52,7 +73,8 @@ class Library {
     public void searchBook(String keyword) {
         boolean found = false;
         for (Book book : books) {
-            if (book.getTitle().equalsIgnoreCase(keyword) || book.getAuthor().equalsIgnoreCase(keyword)) {
+            if (book.getTitle().toLowerCase().contains(keyword.toLowerCase()) ||
+                    book.getAuthor().toLowerCase().contains(keyword.toLowerCase())) {
                 System.out.println("🔎 Found: " + book);
                 found = true;
             }
@@ -72,14 +94,42 @@ class Library {
         }
         if (toDelete != null) {
             books.remove(toDelete);
+            saveBooksToFile();
             System.out.println("🗑️ Book deleted successfully!");
         } else {
             System.out.println("❌ Book not found with ISBN: " + isbn);
         }
     }
+
+    private void saveBooksToFile() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_NAME))) {
+            for (Book book : books) {
+                writer.write(book.toFileString());
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            System.out.println("⚠️ Error saving books: " + e.getMessage());
+        }
+    }
+
+    private void loadBooksFromFile() {
+        File file = new File(FILE_NAME);
+        if (!file.exists()) return;
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                Book book = Book.fromFileString(line);
+                if (book != null) {
+                    books.add(book);
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("⚠️ Error loading books: " + e.getMessage());
+        }
+    }
 }
 
-// Main class
 public class LibraryManagementSystem {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
