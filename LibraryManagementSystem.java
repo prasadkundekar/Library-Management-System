@@ -51,6 +51,36 @@ class Book {
     }
 }
 
+class User {
+    private String username;
+    private String password;
+    private String role;
+
+    public User(String username, String password, String role) {
+        this.username = username;
+        this.password = password;
+        this.role = role;
+    }
+
+    public String getUsername() { return username; }
+    public String getPassword() { return password; }
+    public String getRole() { return role; }
+
+    @Override
+    public String toString() {
+        return username + "," + password + "," + role;
+    }
+
+    public static User fromFileString(String line) {
+        try {
+            String[] parts = line.split(",");
+            return new User(parts[0], parts[1], parts[2]);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}
+
 class Library {
     private ArrayList<Book> books = new ArrayList<>();
     private final String FILE_NAME = "books.txt";
@@ -107,7 +137,6 @@ class Library {
         }
     }
 
-    // Borrow book
     public void borrowBook(String isbn) {
         for (Book book : books) {
             if (book.getIsbn().equals(isbn)) {
@@ -125,7 +154,6 @@ class Library {
         System.out.println("❌ Book not found with ISBN: " + isbn);
     }
 
-    // Return book
     public void returnBook(String isbn) {
         for (Book book : books) {
             if (book.getIsbn().equals(isbn)) {
@@ -191,77 +219,175 @@ class Library {
     }
 }
 
+class UserManager {
+    private ArrayList<User> users = new ArrayList<>();
+    private final String USER_FILE = "users.txt";
+
+    public UserManager() {
+        loadUsersFromFile();
+        if (users.isEmpty()) {
+            // Default admin
+            users.add(new User("admin", "admin123", "Admin"));
+            saveUsersToFile();
+        }
+    }
+
+    public User login(String username, String password) {
+        for (User user : users) {
+            if (user.getUsername().equals(username) && user.getPassword().equals(password)) {
+                return user;
+            }
+        }
+        return null;
+    }
+
+    private void loadUsersFromFile() {
+        File file = new File(USER_FILE);
+        if (!file.exists()) return;
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(USER_FILE))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                User user = User.fromFileString(line);
+                if (user != null) {
+                    users.add(user);
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("⚠️ Error loading users: " + e.getMessage());
+        }
+    }
+
+    private void saveUsersToFile() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(USER_FILE))) {
+            for (User user : users) {
+                writer.write(user.toString());
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            System.out.println("⚠️ Error saving users: " + e.getMessage());
+        }
+    }
+}
+
 public class LibraryManagementSystem {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         Library library = new Library();
-        int choice;
+        UserManager userManager = new UserManager();
 
+        System.out.println("===== Library Login =====");
+        System.out.print("👤 Username: ");
+        String username = sc.nextLine();
+        System.out.print("🔑 Password: ");
+        String password = sc.nextLine();
+
+        User loggedInUser = userManager.login(username, password);
+
+        if (loggedInUser == null) {
+            System.out.println("❌ Invalid login! Exiting...");
+            return;
+        }
+
+        System.out.println("✅ Welcome, " + loggedInUser.getUsername() + " (" + loggedInUser.getRole() + ")!");
+
+        int choice;
         do {
-            System.out.println("\n===== Library Book Management =====");
-            System.out.println("1. Add Book");
-            System.out.println("2. Display Books");
-            System.out.println("3. Search Book (by Title/Author)");
-            System.out.println("4. Delete Book (by ISBN)");
-            System.out.println("5. Borrow Book (by ISBN)");
-            System.out.println("6. Return Book (by ISBN)");
-            System.out.println("7. Show Statistics");
-            System.out.println("8. Exit");
+            System.out.println("\n===== Library Menu =====");
+            if (loggedInUser.getRole().equalsIgnoreCase("Admin")) {
+                System.out.println("1. Add Book");
+                System.out.println("2. Display Books");
+                System.out.println("3. Search Book");
+                System.out.println("4. Delete Book");
+                System.out.println("5. Borrow Book");
+                System.out.println("6. Return Book");
+                System.out.println("7. Show Statistics");
+                System.out.println("8. Exit");
+            } else {
+                System.out.println("1. Display Books");
+                System.out.println("2. Search Book");
+                System.out.println("3. Borrow Book");
+                System.out.println("4. Return Book");
+                System.out.println("5. Exit");
+            }
+
             System.out.print("👉 Enter your choice: ");
             choice = sc.nextInt();
             sc.nextLine();
 
-            switch (choice) {
-                case 1:
-                    System.out.print("Enter Book Title: ");
-                    String title = sc.nextLine();
-                    System.out.print("Enter Book Author: ");
-                    String author = sc.nextLine();
-                    System.out.print("Enter Book ISBN: ");
-                    String isbn = sc.nextLine();
-                    library.addBook(new Book(title, author, isbn));
-                    break;
-
-                case 2:
-                    library.displayBooks();
-                    break;
-
-                case 3:
-                    System.out.print("Enter Title/Author to Search: ");
-                    String keyword = sc.nextLine();
-                    library.searchBook(keyword);
-                    break;
-
-                case 4:
-                    System.out.print("Enter ISBN of the book to delete: ");
-                    String delIsbn = sc.nextLine();
-                    library.deleteBook(delIsbn);
-                    break;
-
-                case 5:
-                    System.out.print("Enter ISBN of the book to borrow: ");
-                    String borrowIsbn = sc.nextLine();
-                    library.borrowBook(borrowIsbn);
-                    break;
-
-                case 6:
-                    System.out.print("Enter ISBN of the book to return: ");
-                    String returnIsbn = sc.nextLine();
-                    library.returnBook(returnIsbn);
-                    break;
-
-                case 7:
-                    library.showStatistics();
-                    break;
-
-                case 8:
-                    System.out.println("👋 Exiting Library Management System...");
-                    break;
-
-                default:
-                    System.out.println("⚠️ Invalid choice! Try again.");
+            if (loggedInUser.getRole().equalsIgnoreCase("Admin")) {
+                switch (choice) {
+                    case 1:
+                        System.out.print("Enter Book Title: ");
+                        String title = sc.nextLine();
+                        System.out.print("Enter Book Author: ");
+                        String author = sc.nextLine();
+                        System.out.print("Enter Book ISBN: ");
+                        String isbn = sc.nextLine();
+                        library.addBook(new Book(title, author, isbn));
+                        break;
+                    case 2:
+                        library.displayBooks();
+                        break;
+                    case 3:
+                        System.out.print("Enter Title/Author to Search: ");
+                        String keyword = sc.nextLine();
+                        library.searchBook(keyword);
+                        break;
+                    case 4:
+                        System.out.print("Enter ISBN of the book to delete: ");
+                        String delIsbn = sc.nextLine();
+                        library.deleteBook(delIsbn);
+                        break;
+                    case 5:
+                        System.out.print("Enter ISBN of the book to borrow: ");
+                        String borrowIsbn = sc.nextLine();
+                        library.borrowBook(borrowIsbn);
+                        break;
+                    case 6:
+                        System.out.print("Enter ISBN of the book to return: ");
+                        String returnIsbn = sc.nextLine();
+                        library.returnBook(returnIsbn);
+                        break;
+                    case 7:
+                        library.showStatistics();
+                        break;
+                    case 8:
+                        System.out.println("👋 Exiting...");
+                        break;
+                    default:
+                        System.out.println("⚠️ Invalid choice!");
+                }
+            } else { // User role
+                switch (choice) {
+                    case 1:
+                        library.displayBooks();
+                        break;
+                    case 2:
+                        System.out.print("Enter Title/Author to Search: ");
+                        String keyword = sc.nextLine();
+                        library.searchBook(keyword);
+                        break;
+                    case 3:
+                        System.out.print("Enter ISBN of the book to borrow: ");
+                        String borrowIsbn = sc.nextLine();
+                        library.borrowBook(borrowIsbn);
+                        break;
+                    case 4:
+                        System.out.print("Enter ISBN of the book to return: ");
+                        String returnIsbn = sc.nextLine();
+                        library.returnBook(returnIsbn);
+                        break;
+                    case 5:
+                        System.out.println("👋 Exiting...");
+                        break;
+                    default:
+                        System.out.println("⚠️ Invalid choice!");
+                }
             }
-        } while (choice != 8);
+
+        } while ((loggedInUser.getRole().equalsIgnoreCase("Admin") && choice != 8) ||
+                (loggedInUser.getRole().equalsIgnoreCase("User") && choice != 5));
 
         sc.close();
     }
