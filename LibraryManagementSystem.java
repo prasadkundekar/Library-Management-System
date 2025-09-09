@@ -1,4 +1,6 @@
 import java.io.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -53,22 +55,22 @@ class Book {
 
 class User {
     private String username;
-    private String password;
+    private String passwordHash;
     private String role;
 
-    public User(String username, String password, String role) {
+    public User(String username, String passwordHash, String role) {
         this.username = username;
-        this.password = password;
+        this.passwordHash = passwordHash;
         this.role = role;
     }
 
     public String getUsername() { return username; }
-    public String getPassword() { return password; }
+    public String getPasswordHash() { return passwordHash; }
     public String getRole() { return role; }
 
     @Override
     public String toString() {
-        return username + "," + password + "," + role;
+        return username + "," + passwordHash + "," + role;
     }
 
     public static User fromFileString(String line) {
@@ -226,19 +228,34 @@ class UserManager {
     public UserManager() {
         loadUsersFromFile();
         if (users.isEmpty()) {
-            // Default admin
-            users.add(new User("admin", "admin123", "Admin"));
-            saveUsersToFile();
+            addUser("admin", "admin123", "Admin");
+            System.out.println("⚠️ Default Admin created (username: admin, password: admin123)");
         }
     }
 
+    public void addUser(String username, String password, String role) {
+        String hash = hashPassword(password);
+        users.add(new User(username, hash, role));
+        saveUsersToFile();
+    }
+
     public User login(String username, String password) {
+        String hash = hashPassword(password);
         for (User user : users) {
-            if (user.getUsername().equals(username) && user.getPassword().equals(password)) {
+            if (user.getUsername().equals(username) && user.getPasswordHash().equals(hash)) {
                 return user;
             }
         }
         return null;
+    }
+
+    public boolean userExists(String username) {
+        for (User user : users) {
+            if (user.getUsername().equalsIgnoreCase(username)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void loadUsersFromFile() {
@@ -268,6 +285,21 @@ class UserManager {
             System.out.println("⚠️ Error saving users: " + e.getMessage());
         }
     }
+
+    // Utility: hash password with SHA-256
+    public static String hashPassword(String password) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = md.digest(password.getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Error: SHA-256 not available.");
+        }
+    }
 }
 
 public class LibraryManagementSystem {
@@ -276,20 +308,61 @@ public class LibraryManagementSystem {
         Library library = new Library();
         UserManager userManager = new UserManager();
 
-        System.out.println("===== Library Login =====");
-        System.out.print("👤 Username: ");
-        String username = sc.nextLine();
-        System.out.print("🔑 Password: ");
-        String password = sc.nextLine();
+        User loggedInUser = null;
 
-        User loggedInUser = userManager.login(username, password);
+        while (loggedInUser == null) {
+            System.out.println("\n===== Welcome to Library =====");
+            System.out.println("1. Login");
+            System.out.println("2. Register (New User)");
+            System.out.println("3. Exit");
+            System.out.print("👉 Enter your choice: ");
+            int option = sc.nextInt();
+            sc.nextLine();
 
-        if (loggedInUser == null) {
-            System.out.println("❌ Invalid login! Exiting...");
-            return;
+            if (option == 1) {
+                // Login
+                System.out.print("👤 Username: ");
+                String username = sc.nextLine();
+                System.out.print("🔑 Password: ");
+                String password = sc.nextLine();
+
+                loggedInUser = userManager.login(username, password);
+
+                if (loggedInUser == null) {
+                    System.out.println("❌ Invalid login! Try again.");
+                } else {
+                    System.out.println("✅ Welcome, " + loggedInUser.getUsername() + " (" + loggedInUser.getRole() + ")!");
+                }
+
+            } else if (option == 2) {
+                System.out.print("👤 Choose Username: ");
+                String newUsername = sc.nextLine();
+
+                if (userManager.userExists(newUsername)) {
+                    System.out.println("⚠️ Username already exists! Try a different one.");
+                    continue;
+                }
+
+                System.out.print("🔑 Choose Password: ");
+                String newPassword1 = sc.nextLine();
+                System.out.print("🔑 Confirm Password: ");
+                String newPassword2 = sc.nextLine();
+
+                if (!newPassword1.equals(newPassword2)) {
+                    System.out.println("❌ Passwords do not match! Try again.");
+                    continue;
+                }
+
+                userManager.addUser(newUsername, newPassword1, "User");
+                System.out.println("✅ Registration successful! You can now log in.");
+
+            } else if (option == 3) {
+                System.out.println("👋 Exiting...");
+                return;
+            } else {
+                System.out.println("⚠️ Invalid choice!");
+            }
         }
-
-        System.out.println("✅ Welcome, " + loggedInUser.getUsername() + " (" + loggedInUser.getRole() + ")!");
 
         int choice;
         do {
@@ -358,7 +431,7 @@ public class LibraryManagementSystem {
                     default:
                         System.out.println("⚠️ Invalid choice!");
                 }
-            } else { // User role
+            } else {
                 switch (choice) {
                     case 1:
                         library.displayBooks();
