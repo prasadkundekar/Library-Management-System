@@ -22,27 +22,16 @@ class Book {
         this.status = status;
     }
 
-    public String getTitle() {
-        return title;
-    }
-    public String getAuthor() {
-        return author;
-    }
-    public String getIsbn() {
-        return isbn;
-    }
-    public String getStatus() {
-        return status;
-    }
-    public void setStatus(String status) {
-        this.status = status;
-    }
+    public String getTitle() { return title; }
+    public String getAuthor() { return author; }
+    public String getIsbn() { return isbn; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
     @Override
     public String toString() {
         return "Title: " + title + " | Author: " + author + " | ISBN: " + isbn + " | Status: " + status;
     }
-
 
     public String toFileString() {
         return toString();
@@ -118,6 +107,7 @@ class Library {
         }
     }
 
+    // Borrow book
     public void borrowBook(String isbn) {
         for (Book book : books) {
             if (book.getIsbn().equals(isbn)) {
@@ -135,6 +125,7 @@ class Library {
         System.out.println("❌ Book not found with ISBN: " + isbn);
     }
 
+    // Return book
     public void returnBook(String isbn) {
         for (Book book : books) {
             if (book.getIsbn().equals(isbn)) {
@@ -150,6 +141,25 @@ class Library {
             }
         }
         System.out.println("❌ Book not found with ISBN: " + isbn);
+    }
+
+    public void showStatistics() {
+        int total = books.size();
+        int available = 0;
+        int issued = 0;
+
+        for (Book book : books) {
+            if (book.getStatus().equalsIgnoreCase("Available")) {
+                available++;
+            } else if (book.getStatus().equalsIgnoreCase("Issued")) {
+                issued++;
+            }
+        }
+
+        System.out.println("\n--- 📊 Library Statistics ---");
+        System.out.println("Total Books   : " + total);
+        System.out.println("Available     : " + available);
+        System.out.println("Issued        : " + issued);
     }
 
     private void saveBooksToFile() {
@@ -195,7 +205,8 @@ public class LibraryManagementSystem {
             System.out.println("4. Delete Book (by ISBN)");
             System.out.println("5. Borrow Book (by ISBN)");
             System.out.println("6. Return Book (by ISBN)");
-            System.out.println("7. Exit");
+            System.out.println("7. Show Statistics");
+            System.out.println("8. Exit");
             System.out.print("👉 Enter your choice: ");
             choice = sc.nextInt();
             sc.nextLine();
@@ -240,13 +251,17 @@ public class LibraryManagementSystem {
                     break;
 
                 case 7:
+                    library.showStatistics();
+                    break;
+
+                case 8:
                     System.out.println("👋 Exiting Library Management System...");
                     break;
 
                 default:
                     System.out.println("⚠️ Invalid choice! Try again.");
             }
-        } while (choice != 7);
+        } while (choice != 8);
 
         sc.close();
     }
