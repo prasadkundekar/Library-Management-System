@@ -6,11 +6,20 @@ class Book {
     private String title;
     private String author;
     private String isbn;
+    private String status;
 
     public Book(String title, String author, String isbn) {
         this.title = title;
         this.author = author;
         this.isbn = isbn;
+        this.status = "Available";
+    }
+
+    public Book(String title, String author, String isbn, String status) {
+        this.title = title;
+        this.author = author;
+        this.isbn = isbn;
+        this.status = status;
     }
 
     public String getTitle() {
@@ -22,11 +31,18 @@ class Book {
     public String getIsbn() {
         return isbn;
     }
+    public String getStatus() {
+        return status;
+    }
+    public void setStatus(String status) {
+        this.status = status;
+    }
 
     @Override
     public String toString() {
-        return "Title: " + title + " | Author: " + author + " | ISBN: " + isbn;
+        return "Title: " + title + " | Author: " + author + " | ISBN: " + isbn + " | Status: " + status;
     }
+
 
     public String toFileString() {
         return toString();
@@ -38,7 +54,8 @@ class Book {
             String title = parts[0].split("Title:")[1].trim();
             String author = parts[1].split("Author:")[1].trim();
             String isbn = parts[2].split("ISBN:")[1].trim();
-            return new Book(title, author, isbn);
+            String status = parts[3].split("Status:")[1].trim();
+            return new Book(title, author, isbn, status);
         } catch (Exception e) {
             return null;
         }
@@ -101,6 +118,40 @@ class Library {
         }
     }
 
+    public void borrowBook(String isbn) {
+        for (Book book : books) {
+            if (book.getIsbn().equals(isbn)) {
+                if (book.getStatus().equals("Available")) {
+                    book.setStatus("Issued");
+                    saveBooksToFile();
+                    System.out.println("📖 You borrowed: " + book.getTitle());
+                    return;
+                } else {
+                    System.out.println("⚠️ Book is already issued.");
+                    return;
+                }
+            }
+        }
+        System.out.println("❌ Book not found with ISBN: " + isbn);
+    }
+
+    public void returnBook(String isbn) {
+        for (Book book : books) {
+            if (book.getIsbn().equals(isbn)) {
+                if (book.getStatus().equals("Issued")) {
+                    book.setStatus("Available");
+                    saveBooksToFile();
+                    System.out.println("✅ You returned: " + book.getTitle());
+                    return;
+                } else {
+                    System.out.println("⚠️ This book was not issued.");
+                    return;
+                }
+            }
+        }
+        System.out.println("❌ Book not found with ISBN: " + isbn);
+    }
+
     private void saveBooksToFile() {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_NAME))) {
             for (Book book : books) {
@@ -142,7 +193,9 @@ public class LibraryManagementSystem {
             System.out.println("2. Display Books");
             System.out.println("3. Search Book (by Title/Author)");
             System.out.println("4. Delete Book (by ISBN)");
-            System.out.println("5. Exit");
+            System.out.println("5. Borrow Book (by ISBN)");
+            System.out.println("6. Return Book (by ISBN)");
+            System.out.println("7. Exit");
             System.out.print("👉 Enter your choice: ");
             choice = sc.nextInt();
             sc.nextLine();
@@ -175,13 +228,25 @@ public class LibraryManagementSystem {
                     break;
 
                 case 5:
+                    System.out.print("Enter ISBN of the book to borrow: ");
+                    String borrowIsbn = sc.nextLine();
+                    library.borrowBook(borrowIsbn);
+                    break;
+
+                case 6:
+                    System.out.print("Enter ISBN of the book to return: ");
+                    String returnIsbn = sc.nextLine();
+                    library.returnBook(returnIsbn);
+                    break;
+
+                case 7:
                     System.out.println("👋 Exiting Library Management System...");
                     break;
 
                 default:
                     System.out.println("⚠️ Invalid choice! Try again.");
             }
-        } while (choice != 5);
+        } while (choice != 7);
 
         sc.close();
     }
