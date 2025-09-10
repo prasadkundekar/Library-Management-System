@@ -1,6 +1,9 @@
 import java.io.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -11,10 +14,7 @@ class Book {
     private String status;
 
     public Book(String title, String author, String isbn) {
-        this.title = title;
-        this.author = author;
-        this.isbn = isbn;
-        this.status = "Available";
+        this(title, author, isbn, "Available");
     }
 
     public Book(String title, String author, String isbn, String status) {
@@ -32,21 +32,17 @@ class Book {
 
     @Override
     public String toString() {
-        return "Title: " + title + " | Author: " + author + " | ISBN: " + isbn + " | Status: " + status;
+        return title + " | " + author + " | ISBN: " + isbn + " | " + status;
     }
 
-    public String toFileString() {
-        return toString();
+    public String toCSV() {
+        return title + "," + author + "," + isbn + "," + status;
     }
 
-    public static Book fromFileString(String line) {
+    public static Book fromCSV(String line) {
         try {
-            String[] parts = line.split("\\|");
-            String title = parts[0].split("Title:")[1].trim();
-            String author = parts[1].split("Author:")[1].trim();
-            String isbn = parts[2].split("ISBN:")[1].trim();
-            String status = parts[3].split("Status:")[1].trim();
-            return new Book(title, author, isbn, status);
+            String[] parts = line.split(",");
+            return new Book(parts[0], parts[1], parts[2], parts[3]);
         } catch (Exception e) {
             return null;
         }
@@ -56,7 +52,7 @@ class Book {
 class User {
     private String username;
     private String passwordHash;
-    private String role;
+    private String role; // Admin / User
 
     public User(String username, String passwordHash, String role) {
         this.username = username;
@@ -73,7 +69,7 @@ class User {
         return username + "," + passwordHash + "," + role;
     }
 
-    public static User fromFileString(String line) {
+    public static User fromCSV(String line) {
         try {
             String[] parts = line.split(",");
             return new User(parts[0], parts[1], parts[2]);
@@ -83,12 +79,66 @@ class User {
     }
 }
 
+class Transaction {
+    private String username;
+    private String isbn;
+    private String issueDate;
+    private String dueDate;
+    private String returnDate;
+    private long fine;
+
+    public Transaction(String username, String isbn, String issueDate, String dueDate, String returnDate, long fine) {
+        this.username = username;
+        this.isbn = isbn;
+        this.issueDate = issueDate;
+        this.dueDate = dueDate;
+        this.returnDate = returnDate;
+        this.fine = fine;
+    }
+
+    public String getUsername() { return username; }
+    public String getIsbn() { return isbn; }
+    public String getIssueDate() { return issueDate; }
+    public String getDueDate() { return dueDate; }
+    public String getReturnDate() { return returnDate; }
+    public long getFine() { return fine; }
+    public void setReturnDate(String returnDate) { this.returnDate = returnDate; }
+    public void setFine(long fine) { this.fine = fine; }
+
+    @Override
+    public String toString() {
+        return "User: " + username + " | ISBN: " + isbn + " | Issued: " + issueDate +
+                " | Due: " + dueDate + " | Returned: " + (returnDate == null ? "Not Returned" : returnDate) +
+                " | Fine: ₹" + fine;
+    }
+
+    public String toCSV() {
+        return username + "," + isbn + "," + issueDate + "," + dueDate + "," +
+                (returnDate == null ? "" : returnDate) + "," + fine;
+    }
+
+    public static Transaction fromCSV(String line) {
+        try {
+            String[] parts = line.split(",");
+            String returnDate = parts[4].isEmpty() ? null : parts[4];
+            long fine = Long.parseLong(parts[5]);
+            return new Transaction(parts[0], parts[1], parts[2], parts[3], returnDate, fine);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}
+
 class Library {
     private ArrayList<Book> books = new ArrayList<>();
-    private final String FILE_NAME = "books.txt";
+    private ArrayList<Transaction> transactions = new ArrayList<>();
+    private final String BOOK_FILE = "books.csv";
+    private final String TRANSACTION_FILE = "transactions.csv";
+    private DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
     public Library() {
         loadBooksFromFile();
+        loadTransactionsFromFile();
     }
 
     public void addBook(Book book) {
@@ -99,70 +149,88 @@ class Library {
 
     public void displayBooks() {
         if (books.isEmpty()) {
-            System.out.println("📚 No books available in the library.");
+            System.out.println("📚 No books available.");
             return;
         }
         System.out.println("\n--- Library Books ---");
-        for (Book book : books) {
-            System.out.println(book);
-        }
+        for (Book b : books) System.out.println(b);
     }
 
     public void searchBook(String keyword) {
         boolean found = false;
-        for (Book book : books) {
-            if (book.getTitle().toLowerCase().contains(keyword.toLowerCase()) ||
-                    book.getAuthor().toLowerCase().contains(keyword.toLowerCase())) {
-                System.out.println("🔎 Found: " + book);
+        for (Book b : books) {
+            if (b.getTitle().toLowerCase().contains(keyword.toLowerCase()) ||
+                    b.getAuthor().toLowerCase().contains(keyword.toLowerCase()) ||
+                    b.getIsbn().equals(keyword)) {
+                System.out.println("🔎 Found: " + b);
                 found = true;
             }
         }
-        if (!found) {
-            System.out.println("❌ No book found with the given keyword.");
-        }
+        if (!found) System.out.println("❌ No book found.");
     }
 
     public void deleteBook(String isbn) {
         Book toDelete = null;
-        for (Book book : books) {
-            if (book.getIsbn().equals(isbn)) {
-                toDelete = book;
-                break;
-            }
+        for (Book b : books) {
+            if (b.getIsbn().equals(isbn)) { toDelete = b; break; }
         }
         if (toDelete != null) {
             books.remove(toDelete);
             saveBooksToFile();
-            System.out.println("🗑️ Book deleted successfully!");
+            System.out.println("🗑️ Book deleted.");
         } else {
-            System.out.println("❌ Book not found with ISBN: " + isbn);
+            System.out.println("❌ Book not found.");
         }
     }
 
-    public void borrowBook(String isbn) {
-        for (Book book : books) {
-            if (book.getIsbn().equals(isbn)) {
-                if (book.getStatus().equals("Available")) {
-                    book.setStatus("Issued");
+    public void borrowBook(String isbn, String username) {
+        for (Book b : books) {
+            if (b.getIsbn().equals(isbn)) {
+                if (b.getStatus().equals("Available")) {
+                    b.setStatus("Issued");
+                    LocalDate issueDate = LocalDate.now();
+                    LocalDate dueDate = issueDate.plusDays(7);
+                    Transaction t = new Transaction(username, isbn,
+                            issueDate.format(formatter), dueDate.format(formatter), null, 0);
+                    transactions.add(t);
                     saveBooksToFile();
-                    System.out.println("📖 You borrowed: " + book.getTitle());
+                    saveTransactionsToFile();
+                    System.out.println("📖 Borrowed: " + b.getTitle());
+                    System.out.println("📅 Due: " + dueDate.format(formatter));
                     return;
                 } else {
-                    System.out.println("⚠️ Book is already issued.");
+                    System.out.println("⚠️ Already issued.");
                     return;
                 }
             }
         }
-        System.out.println("❌ Book not found with ISBN: " + isbn);
+        System.out.println("❌ ISBN not found.");
     }
 
-    public void returnBook(String isbn) {
-        for (Book book : books) {
-            if (book.getIsbn().equals(isbn)) {
-                if (book.getStatus().equals("Issued")) {
-                    book.setStatus("Available");
+    public void returnBook(String isbn, String username) {
+        for (Book b : books) {
+            if (b.getIsbn().equals(isbn)) {
+                if (b.getStatus().equals("Issued")) {
+                    b.setStatus("Available");
+                    for (Transaction t : transactions) {
+                        if (t.getIsbn().equals(isbn) && t.getUsername().equals(username) && t.getReturnDate() == null) {
+                            LocalDate dueDate = LocalDate.parse(t.getDueDate(), formatter);
+                            LocalDate today = LocalDate.now();
+                            long lateDays = ChronoUnit.DAYS.between(dueDate, today);
+                            long fine = lateDays > 0 ? lateDays * 10 : 0;
+                            t.setReturnDate(today.format(formatter));
+                            t.setFine(fine);
+                            if (fine > 0) {
+                                System.out.println("⚠️ Late by " + lateDays + " days. Fine = ₹" + fine);
+                            } else {
+                                System.out.println("✅ Returned on time!");
+                            }
+                            break;
+                        }
+                    }
                     saveBooksToFile();
-                    System.out.println("✅ You returned: " + book.getTitle());
+                    saveTransactionsToFile();
+                    System.out.println("✅ You returned: " + b.getTitle());
                     return;
                 } else {
                     System.out.println("⚠️ This book was not issued.");
@@ -170,60 +238,75 @@ class Library {
                 }
             }
         }
-        System.out.println("❌ Book not found with ISBN: " + isbn);
+        System.out.println("❌ ISBN not found.");
     }
 
-    public void showStatistics() {
-        int total = books.size();
-        int available = 0;
-        int issued = 0;
-
-        for (Book book : books) {
-            if (book.getStatus().equalsIgnoreCase("Available")) {
-                available++;
-            } else if (book.getStatus().equalsIgnoreCase("Issued")) {
-                issued++;
+    public void viewUserHistory(String username) {
+        System.out.println("\n--- Borrowing History of " + username + " ---");
+        boolean found = false;
+        for (Transaction t : transactions) {
+            if (t.getUsername().equals(username)) {
+                System.out.println(t);
+                found = true;
             }
         }
-
-        System.out.println("\n--- 📊 Library Statistics ---");
-        System.out.println("Total Books   : " + total);
-        System.out.println("Available     : " + available);
-        System.out.println("Issued        : " + issued);
+        if (!found) System.out.println("📭 No records found.");
     }
 
     private void saveBooksToFile() {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_NAME))) {
-            for (Book book : books) {
-                writer.write(book.toFileString());
-                writer.newLine();
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(BOOK_FILE))) {
+            for (Book b : books) {
+                bw.write(b.toCSV());
+                bw.newLine();
             }
         } catch (IOException e) {
-            System.out.println("⚠️ Error saving books: " + e.getMessage());
+            System.out.println("⚠️ Error saving books.");
         }
     }
 
     private void loadBooksFromFile() {
-        File file = new File(FILE_NAME);
-        if (!file.exists()) return;
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
+        File f = new File(BOOK_FILE);
+        if (!f.exists()) return;
+        try (BufferedReader br = new BufferedReader(new FileReader(BOOK_FILE))) {
             String line;
-            while ((line = reader.readLine()) != null) {
-                Book book = Book.fromFileString(line);
-                if (book != null) {
-                    books.add(book);
-                }
+            while ((line = br.readLine()) != null) {
+                Book b = Book.fromCSV(line);
+                if (b != null) books.add(b);
             }
         } catch (IOException e) {
-            System.out.println("⚠️ Error loading books: " + e.getMessage());
+            System.out.println("⚠️ Error loading books.");
+        }
+    }
+
+    private void saveTransactionsToFile() {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(TRANSACTION_FILE))) {
+            for (Transaction t : transactions) {
+                bw.write(t.toCSV());
+                bw.newLine();
+            }
+        } catch (IOException e) {
+            System.out.println("⚠️ Error saving transactions.");
+        }
+    }
+
+    private void loadTransactionsFromFile() {
+        File f = new File(TRANSACTION_FILE);
+        if (!f.exists()) return;
+        try (BufferedReader br = new BufferedReader(new FileReader(TRANSACTION_FILE))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                Transaction t = Transaction.fromCSV(line);
+                if (t != null) transactions.add(t);
+            }
+        } catch (IOException e) {
+            System.out.println("⚠️ Error loading transactions.");
         }
     }
 }
 
 class UserManager {
     private ArrayList<User> users = new ArrayList<>();
-    private final String USER_FILE = "users.txt";
+    private final String USER_FILE = "users.csv";
 
     public UserManager() {
         loadUsersFromFile();
@@ -241,63 +324,51 @@ class UserManager {
 
     public User login(String username, String password) {
         String hash = hashPassword(password);
-        for (User user : users) {
-            if (user.getUsername().equals(username) && user.getPasswordHash().equals(hash)) {
-                return user;
-            }
+        for (User u : users) {
+            if (u.getUsername().equals(username) && u.getPasswordHash().equals(hash)) return u;
         }
         return null;
     }
 
     public boolean userExists(String username) {
-        for (User user : users) {
-            if (user.getUsername().equalsIgnoreCase(username)) {
-                return true;
-            }
-        }
+        for (User u : users) if (u.getUsername().equalsIgnoreCase(username)) return true;
         return false;
     }
 
     private void loadUsersFromFile() {
-        File file = new File(USER_FILE);
-        if (!file.exists()) return;
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(USER_FILE))) {
+        File f = new File(USER_FILE);
+        if (!f.exists()) return;
+        try (BufferedReader br = new BufferedReader(new FileReader(USER_FILE))) {
             String line;
-            while ((line = reader.readLine()) != null) {
-                User user = User.fromFileString(line);
-                if (user != null) {
-                    users.add(user);
-                }
+            while ((line = br.readLine()) != null) {
+                User u = User.fromCSV(line);
+                if (u != null) users.add(u);
             }
         } catch (IOException e) {
-            System.out.println("⚠️ Error loading users: " + e.getMessage());
+            System.out.println("⚠️ Error loading users.");
         }
     }
 
     private void saveUsersToFile() {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(USER_FILE))) {
-            for (User user : users) {
-                writer.write(user.toString());
-                writer.newLine();
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(USER_FILE))) {
+            for (User u : users) {
+                bw.write(u.toString());
+                bw.newLine();
             }
         } catch (IOException e) {
-            System.out.println("⚠️ Error saving users: " + e.getMessage());
+            System.out.println("⚠️ Error saving users.");
         }
     }
 
-    // Utility: hash password with SHA-256
-    public static String hashPassword(String password) {
+    public static String hashPassword(String pwd) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hashBytes = md.digest(password.getBytes());
+            byte[] bytes = md.digest(pwd.getBytes());
             StringBuilder sb = new StringBuilder();
-            for (byte b : hashBytes) {
-                sb.append(String.format("%02x", b));
-            }
+            for (byte b : bytes) sb.append(String.format("%02x", b));
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Error: SHA-256 not available.");
+            throw new RuntimeException("Hash error.");
         }
     }
 }
@@ -313,60 +384,42 @@ public class LibraryManagementSystem {
         while (loggedInUser == null) {
             System.out.println("\n===== Welcome to Library =====");
             System.out.println("1. Login");
-            System.out.println("2. Register (New User)");
+            System.out.println("2. Register");
             System.out.println("3. Exit");
-            System.out.print("👉 Enter your choice: ");
-            int option = sc.nextInt();
-            sc.nextLine();
+            System.out.print("👉 Choice: ");
+            int opt = sc.nextInt(); sc.nextLine();
 
-            if (option == 1) {
-                // Login
+            if (opt == 1) {
                 System.out.print("👤 Username: ");
-                String username = sc.nextLine();
+                String u = sc.nextLine();
                 System.out.print("🔑 Password: ");
-                String password = sc.nextLine();
-
-                loggedInUser = userManager.login(username, password);
-
-                if (loggedInUser == null) {
-                    System.out.println("❌ Invalid login! Try again.");
-                } else {
-                    System.out.println("✅ Welcome, " + loggedInUser.getUsername() + " (" + loggedInUser.getRole() + ")!");
-                }
-
-            } else if (option == 2) {
-                System.out.print("👤 Choose Username: ");
-                String newUsername = sc.nextLine();
-
-                if (userManager.userExists(newUsername)) {
-                    System.out.println("⚠️ Username already exists! Try a different one.");
+                String p = sc.nextLine();
+                loggedInUser = userManager.login(u, p);
+                if (loggedInUser == null) System.out.println("❌ Invalid login!");
+                else System.out.println("✅ Welcome " + loggedInUser.getUsername() + " (" + loggedInUser.getRole() + ")");
+            } else if (opt == 2) {
+                System.out.print("👤 New Username: ");
+                String u = sc.nextLine();
+                if (userManager.userExists(u)) {
+                    System.out.println("⚠️ Username exists!");
                     continue;
                 }
-
-                System.out.print("🔑 Choose Password: ");
-                String newPassword1 = sc.nextLine();
+                System.out.print("🔑 Password: ");
+                String p1 = sc.nextLine();
                 System.out.print("🔑 Confirm Password: ");
-                String newPassword2 = sc.nextLine();
-
-                if (!newPassword1.equals(newPassword2)) {
-                    System.out.println("❌ Passwords do not match! Try again.");
-                    continue;
-                }
-
-                userManager.addUser(newUsername, newPassword1, "User");
-                System.out.println("✅ Registration successful! You can now log in.");
-
-            } else if (option == 3) {
-                System.out.println("👋 Exiting...");
+                String p2 = sc.nextLine();
+                if (!p1.equals(p2)) { System.out.println("❌ Passwords mismatch!"); continue; }
+                userManager.addUser(u, p1, "User");
+                System.out.println("✅ Registration successful!");
+            } else if (opt == 3) {
+                System.out.println("👋 Bye!");
                 return;
-            } else {
-                System.out.println("⚠️ Invalid choice!");
-            }
+            } else System.out.println("⚠️ Invalid choice!");
         }
 
-        int choice;
+        int ch;
         do {
-            System.out.println("\n===== Library Menu =====");
+            System.out.println("\n===== Menu =====");
             if (loggedInUser.getRole().equalsIgnoreCase("Admin")) {
                 System.out.println("1. Add Book");
                 System.out.println("2. Display Books");
@@ -374,93 +427,50 @@ public class LibraryManagementSystem {
                 System.out.println("4. Delete Book");
                 System.out.println("5. Borrow Book");
                 System.out.println("6. Return Book");
-                System.out.println("7. Show Statistics");
+                System.out.println("7. View My History");
                 System.out.println("8. Exit");
             } else {
                 System.out.println("1. Display Books");
                 System.out.println("2. Search Book");
                 System.out.println("3. Borrow Book");
                 System.out.println("4. Return Book");
-                System.out.println("5. Exit");
+                System.out.println("5. View My History");
+                System.out.println("6. Exit");
             }
 
-            System.out.print("👉 Enter your choice: ");
-            choice = sc.nextInt();
-            sc.nextLine();
+            System.out.print("👉 Choice: ");
+            ch = sc.nextInt(); sc.nextLine();
 
             if (loggedInUser.getRole().equalsIgnoreCase("Admin")) {
-                switch (choice) {
-                    case 1:
-                        System.out.print("Enter Book Title: ");
-                        String title = sc.nextLine();
-                        System.out.print("Enter Book Author: ");
-                        String author = sc.nextLine();
-                        System.out.print("Enter Book ISBN: ");
-                        String isbn = sc.nextLine();
-                        library.addBook(new Book(title, author, isbn));
-                        break;
-                    case 2:
-                        library.displayBooks();
-                        break;
-                    case 3:
-                        System.out.print("Enter Title/Author to Search: ");
-                        String keyword = sc.nextLine();
-                        library.searchBook(keyword);
-                        break;
-                    case 4:
-                        System.out.print("Enter ISBN of the book to delete: ");
-                        String delIsbn = sc.nextLine();
-                        library.deleteBook(delIsbn);
-                        break;
-                    case 5:
-                        System.out.print("Enter ISBN of the book to borrow: ");
-                        String borrowIsbn = sc.nextLine();
-                        library.borrowBook(borrowIsbn);
-                        break;
-                    case 6:
-                        System.out.print("Enter ISBN of the book to return: ");
-                        String returnIsbn = sc.nextLine();
-                        library.returnBook(returnIsbn);
-                        break;
-                    case 7:
-                        library.showStatistics();
-                        break;
-                    case 8:
-                        System.out.println("👋 Exiting...");
-                        break;
-                    default:
-                        System.out.println("⚠️ Invalid choice!");
+                switch (ch) {
+                    case 1 -> {
+                        System.out.print("Title: "); String t = sc.nextLine();
+                        System.out.print("Author: "); String a = sc.nextLine();
+                        System.out.print("ISBN: "); String i = sc.nextLine();
+                        library.addBook(new Book(t,a,i));
+                    }
+                    case 2 -> library.displayBooks();
+                    case 3 -> { System.out.print("Keyword: "); library.searchBook(sc.nextLine()); }
+                    case 4 -> { System.out.print("ISBN: "); library.deleteBook(sc.nextLine()); }
+                    case 5 -> { System.out.print("ISBN: "); library.borrowBook(sc.nextLine(), loggedInUser.getUsername()); }
+                    case 6 -> { System.out.print("ISBN: "); library.returnBook(sc.nextLine(), loggedInUser.getUsername()); }
+                    case 7 -> library.viewUserHistory(loggedInUser.getUsername());
+                    case 8 -> System.out.println("👋 Bye!");
+                    default -> System.out.println("⚠️ Invalid!");
                 }
             } else {
-                switch (choice) {
-                    case 1:
-                        library.displayBooks();
-                        break;
-                    case 2:
-                        System.out.print("Enter Title/Author to Search: ");
-                        String keyword = sc.nextLine();
-                        library.searchBook(keyword);
-                        break;
-                    case 3:
-                        System.out.print("Enter ISBN of the book to borrow: ");
-                        String borrowIsbn = sc.nextLine();
-                        library.borrowBook(borrowIsbn);
-                        break;
-                    case 4:
-                        System.out.print("Enter ISBN of the book to return: ");
-                        String returnIsbn = sc.nextLine();
-                        library.returnBook(returnIsbn);
-                        break;
-                    case 5:
-                        System.out.println("👋 Exiting...");
-                        break;
-                    default:
-                        System.out.println("⚠️ Invalid choice!");
+                switch (ch) {
+                    case 1 -> library.displayBooks();
+                    case 2 -> { System.out.print("Keyword: "); library.searchBook(sc.nextLine()); }
+                    case 3 -> { System.out.print("ISBN: "); library.borrowBook(sc.nextLine(), loggedInUser.getUsername()); }
+                    case 4 -> { System.out.print("ISBN: "); library.returnBook(sc.nextLine(), loggedInUser.getUsername()); }
+                    case 5 -> library.viewUserHistory(loggedInUser.getUsername());
+                    case 6 -> System.out.println("👋 Bye!");
+                    default -> System.out.println("⚠️ Invalid!");
                 }
             }
-
-        } while ((loggedInUser.getRole().equalsIgnoreCase("Admin") && choice != 8) ||
-                (loggedInUser.getRole().equalsIgnoreCase("User") && choice != 5));
+        } while ((loggedInUser.getRole().equalsIgnoreCase("Admin") && ch != 8) ||
+                (loggedInUser.getRole().equalsIgnoreCase("User") && ch != 6));
 
         sc.close();
     }
