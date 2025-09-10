@@ -4,10 +4,11 @@ import service.UserManager;
 
 public class LibraryManagementSystem {
     public static void main(String[] args) {
+        // Create shared instances of Library and UserManager
         Library library = new Library();
         UserManager userManager = new UserManager();
 
-        // Launch GUI Login
-        new LoginFrame(userManager, library);
+        // Launch login window
+        new LoginFrame(library, userManager);
     }
 }

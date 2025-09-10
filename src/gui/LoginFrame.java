@@ -1,4 +1,4 @@
-package gui;
+package src.gui;
 
 import model.User;
 import service.Library;
